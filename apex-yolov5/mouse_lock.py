@@ -1,12 +1,11 @@
 
 from simple_pid import PID
 import pynput,win32con
-import pydirectinput
+#import pydirectinput
 import win32api
 from .mouse import mouse_xy
 from math import atan
 
-#pid係數可自行調整(以下為我自己使用的參數)
 pidx = PID(1.2, 3.51, 0.0, setpoint=0, sample_time=0.001,)
 pidy = PID(1.22, 0.12, 0.0, setpoint=0, sample_time=0.001,)
 
@@ -16,25 +15,9 @@ def mouse_To1(des_X,des_Y,current_mouse_x=0,current_mouse_y=0):
     down = des_Y - current_mouse_y
     up = int(up)
     down = int(down)
-    #up = pidx(up)
-    #down = pidy(down)
-
-    #print('up:',up,'  down:',down)
-    #mouse_xy(round(up),round(down))
     win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, up, down)
-def mouse_To2(des_X,des_Y,x_center,y_center,height,current_mouse_x=0,current_mouse_y=0):
-    up = des_X - current_mouse_x
-    down = des_Y - current_mouse_y
-    
-    k = 4.07 * (1 / 1.9)
-    real_X=int(k / 3.0 * atan((des_X - x_center) / 640) * 640)
-    real_Y = int(k / 1.9 * atan((current_mouse_y - y_center) / 640) * 640)#瞄準高度可自行調整(建議為1/4)
-    up = pidx(real_X)
-    down = pidy(real_Y)
-    print('up:',up,'  down:',down)
-    #mouse_xy(round(up),round(down))
-    win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, round(up), round(down))
 def mouse_To(des_X,des_Y,current_mouse_x=0,current_mouse_y=0):
+    #效果不好
     up = des_X - current_mouse_x
     down = des_Y - current_mouse_y
     if up ==0 and down ==0:
