@@ -8,16 +8,17 @@ from utils.general import  non_max_suppression,scale_boxes,xyxy2xywh
 from utils.augmentations import letterbox
 import cv2,time
 import numpy as np
-from .mouse_lock import lock
+global lock
+from .mouse_lock import MouseLock, lock
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 half = device != 'cpu'
 imgsz = 640
 conf_thres = 0.4
 iou_thres = 0.05
 #screen_width, screren_ = (1920, 1080)  # 1280 * 1024
-screen_width,screen_height = (1920,1080)
+screen_width,screen_height = (2560,1440)
 #截屏区域
-offet_Shot_Screen = 20 #屏幕截图偏移量,
+offet_Shot_Screen = 15 #屏幕截图偏移量,
 #默认16：9, 1920x1080 , 960, 540是屏幕中心，根据自己的屏幕修改
 left_top_x = screen_width//2 - offet_Shot_Screen*16
 left_top_y = screen_height//2 - offet_Shot_Screen*9
@@ -30,38 +31,28 @@ shot_Height = 2*offet_Shot_Screen*9
 window_Name="apex-tang"
 auto = True
 model = load_model()
-lock_mode= False  #don's edit this
-mouse = pynput.mouse.Controller() #鼠标对象
+lock_mode = False  #don's edit this
 lock_button="left" #无用，apex为按住鼠标左或者右其中一个为就为lock模式，建议在游戏设置按住开镜
-isShowDebugWindow = False  #可修改为True，会出现调试窗口
+isShowDebugWindow = True  #可修改为True，会出现调试窗口
 isRightKeyDown = False
 isLeftKeyDown = False
+isX2KeyDown = False
 mouseFlag = 0   #0, 1 2 3
+
 def on_click(x, y, button, pressed):
-    #print("鼠标按住")
-    global lock_mode,isLeftKeyDown,isRightKeyDown,mouseFlag
-    if pressed:
-        if(button == button.left):
-            lock_mode = True
-            isLeftKeyDown = True
-        if(button == button.right):
-            lock_mode = True
-            isRightKeyDown = True
-    else:
-        if(button == button.left):
-            isLeftKeyDown = False
-        if(button == button.right):
-            isRightKeyDown = False
-        if(isLeftKeyDown or isRightKeyDown):
-            lock_mode = True
-        else:
-            lock_mode = False
+    global lock_mode, isX2Down
+    if button == button.x2:
+        isX2Down = pressed
+        lock_mode = pressed
+        print(f'isX2Down: {isX2Down}')
+        
 # ...or, in a non-blocking fashion:
 listener = pynput.mouse.Listener(
     on_click=on_click)
 listener.start()
 names = model.module.names if hasattr(model, 'module') else model.names
 def main():
+    mouselock = MouseLock(shot_Width, shot_Height)
     while(True):
         t0 = time.time()
         img0 = grab_screen(region=(left_top_x, left_top_y, right_bottom_x, right_bottom_y))
@@ -101,9 +92,10 @@ def main():
                     aims.append(aim)
 
             if len(aims):
-                if lock_mode:
-                    #print("todo...")
-                    lock(aims, mouse, screen_width, screen_height, shot_width=shot_Width,shot_height=shot_Height) #x y 是分辨率
+                mouselock.lock(aims)
+                print(f"set mouse lock state to {lock_mode}")
+                mouselock.set_lock_state(lock_mode)
+                # print(f"mouse lock state: {lock_state}")
                 for i, det in enumerate(aims):
                     tag, x_center, y_center, width, height = det
                     x_center, width = shot_Width * float(x_center), shot_Width * float(width)
@@ -127,5 +119,6 @@ def main():
             win32gui.SetWindowPos(hwnd, win32con.HWND_TOPMOST, 0, 0, 0, 0, win32con.SWP_NOMOVE | win32con.SWP_NOSIZE)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 cv2.destroyAllWindows()
+                mouselock.set_exit_flag(True)
                 break
 main()
