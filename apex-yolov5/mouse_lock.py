@@ -27,28 +27,40 @@ pid_exit_flag = False
 
 def pid_control():
     print('PID thread started')
-    Kp, Ki, Kd = 0.1, 0, 0.0
+    Kp, Ki, Kd = 0.2, 0.025, 0.2
     integral_x = 0
     integral_y = 0
     prev_error_x = 0
     prev_error_y = 0
+    local_lock_state = False
+    local_pid_exit_flag = False
     while True:
+        # update local variables
         with lock:
-            if pid_exit_flag:
-                break
-            print(f"mouse lock state: {lock_state}")
-            if lock_state:
-                error_X = targetRealX - current_mouse_x
-                error_Y = targetRealY - current_mouse_y
-                integral_x += error_X
-                integral_y += error_Y
-                derivative_x = error_X - prev_error_x
-                derivative_y = error_Y - prev_error_y
-                output_x = Kp * error_X + Ki * integral_x + Kd * derivative_x
-                output_y = Kp * error_Y + Ki * integral_y + Kd * derivative_y
-                print(f"鼠标移动 x:{output_x} y:{output_y}")
-                win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, int(output_x), int(output_y))
-            time.sleep(0.001)
+            local_lock_state = lock_state
+            local_pid_exit_flag = pid_exit_flag
+        if local_pid_exit_flag:
+            break
+        print(f"mouse lock state: {lock_state}")
+        if local_lock_state:
+            error_X = targetRealX - current_mouse_x
+            error_Y = targetRealY - current_mouse_y
+            integral_x += error_X
+            integral_y += error_Y
+            derivative_x = error_X - prev_error_x
+            derivative_y = error_Y - prev_error_y
+            prev_error_x = error_X
+            prev_error_y = error_Y
+            output_x = Kp * error_X + Ki * integral_x + Kd * derivative_x
+            output_y = Kp * error_Y + Ki * integral_y + Kd * derivative_y
+            print(f"鼠标移动 x:{output_x} y:{output_y}")
+            win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, int(output_x), int(output_y))
+        else:
+            integral_x = 0
+            integral_y = 0
+            prev_error_x = 0
+            prev_error_y = 0
+        time.sleep(0.001)
     print('PID thread exited')
 
 
@@ -56,6 +68,7 @@ class MouseLock:
     def __init__(self, shot_Width, shot_Height) -> None:
         global current_mouse_x, current_mouse_y, dist, targetRealX, targetRealY
         self.screen_width, self.screen_height = (2560,1440) # Screen resolution
+        self.target_offset_y = -0.1 # target offset
         dist = False # distance small enough
         self.mouse = pynput.mouse.Controller() # mouse controller
         targetRealX, targetRealY = self.screen_width//2, self.screen_height//2
@@ -81,13 +94,14 @@ class MouseLock:
             return
         dist_list = []
         for det in aims_copy:
-            _, x_c, y_c, _, _ = det
+            _, x_c, y_c, _, _ = det # tag, x_center, y_center, width, height
             x, y = self.xcyc2xyxy(x_c, y_c)
             dist = (x - current_mouse_x) ** 2 + (y - current_mouse_y) ** 2
             dist_list.append(dist)
         det = aims_copy[dist_list.index(min(dist_list))] # get the nearest target
         tag,target_x,target_y,target_width,target_height=det
         targetRealX, targetRealY = self.xcyc2xyxy(target_x, target_y)
+        targetRealY += int(self.target_offset_y*self.shot_Height / 2 * float(target_height))
         dist = (targetRealX - current_mouse_x)**2 + (targetRealY - current_mouse_y)**2
         if dist < 20000:
             self.dist = True

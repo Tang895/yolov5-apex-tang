@@ -18,7 +18,7 @@ iou_thres = 0.05
 #screen_width, screren_ = (1920, 1080)  # 1280 * 1024
 screen_width,screen_height = (2560,1440)
 #截屏区域
-offet_Shot_Screen = 15 #屏幕截图偏移量,
+offet_Shot_Screen = 20 #屏幕截图偏移量,
 #默认16：9, 1920x1080 , 960, 540是屏幕中心，根据自己的屏幕修改
 left_top_x = screen_width//2 - offet_Shot_Screen*16
 left_top_y = screen_height//2 - offet_Shot_Screen*9
@@ -90,21 +90,22 @@ def main():
                     aim = aim.split(' ')
                     #print("aim:",aim)
                     aims.append(aim)
-
-            if len(aims):
-                mouselock.lock(aims)
-                print(f"set mouse lock state to {lock_mode}")
-                mouselock.set_lock_state(lock_mode)
-                # print(f"mouse lock state: {lock_state}")
-                for i, det in enumerate(aims):
-                    tag, x_center, y_center, width, height = det
-                    x_center, width = shot_Width * float(x_center), shot_Width * float(width)
-                    y_center, height = shot_Height * float(y_center), shot_Height * float(height)
-                    top_left = (int(x_center - width / 2.0), int(y_center - height / 2.0))
-                    bottom_right = (int(x_center + width / 2.0), int(y_center + height / 2.0))
-                    color = (0, 0, 255)  # BGR
-                    if(isShowDebugWindow):
-                        cv2.rectangle(img0, top_left, bottom_right, color, thickness=3)
+        if len(aims):
+            mouselock.set_lock_state(lock_mode)
+            mouselock.lock(aims)
+            print(f"set mouse lock state to {lock_mode}")
+            # print(f"mouse lock state: {lock_state}")
+            for i, det in enumerate(aims):
+                tag, x_center, y_center, width, height = det
+                x_center, width = shot_Width * float(x_center), shot_Width * float(width)
+                y_center, height = shot_Height * float(y_center), shot_Height * float(height)
+                top_left = (int(x_center - width / 2.0), int(y_center - height / 2.0))
+                bottom_right = (int(x_center + width / 2.0), int(y_center + height / 2.0))
+                color = (0, 0, 255)  # BGR
+                if(isShowDebugWindow):
+                    cv2.rectangle(img0, top_left, bottom_right, color, thickness=3)
+        else:
+            mouselock.set_lock_state(False) # no target, unlock
 
         if(isShowDebugWindow):
             cv2.namedWindow(window_Name, cv2.WINDOW_NORMAL)
