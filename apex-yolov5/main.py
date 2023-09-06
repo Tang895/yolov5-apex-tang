@@ -41,7 +41,7 @@ mouseFlag = 0   #0, 1 2 3
 
 def on_click(x, y, button, pressed):
     global lock_mode, isX2Down
-    if button == button.x2:
+    if button == button.x2: # 使用鼠标上面一个侧键切换锁定模式，需要在apex设置中调整按键避免冲突
         isX2Down = pressed
         lock_mode = pressed
         print(f'isX2Down: {isX2Down}')
