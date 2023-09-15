@@ -3,94 +3,115 @@ from simple_pid import PID
 import pynput,win32con
 #import pydirectinput
 import win32api
-from .mouse import mouse_xy
-from math import atan
+import time
+import threading
+
 
 pidx = PID(1.2, 3.51, 0.0, setpoint=0, sample_time=0.001,)
 pidy = PID(1.22, 0.12, 0.0, setpoint=0, sample_time=0.001,)
 
+
 lock_tag = '0'
-def mouse_To1(des_X,des_Y,current_mouse_x=0,current_mouse_y=0):
-    up = des_X - current_mouse_x
-    down = des_Y - current_mouse_y
-    up = int(up)
-    down = int(down)
-    win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, up, down)
-def mouse_To(des_X,des_Y,current_mouse_x=0,current_mouse_y=0):
-    #效果不好
-    up = des_X - current_mouse_x
-    down = des_Y - current_mouse_y
-    if up ==0 and down ==0:
-        return
-    up = int(up)
-    down = int(down)
-    movingUp = up // 2
-    movingDown = down // 2
-    abs_up = up if up > 0 else -up
-    abs_down = down if down > 0 else -down
-    Max = max(abs_down,abs_up)
-    ite = Max
-    for i in range(ite):
-        if (2**i)>Max:
+
+# 线程锁
+lock = threading.Lock()
+
+# define some global variables
+targetRealX, targetRealY = 0, 0
+current_mouse_x, current_mouse_y = 0, 0
+lock_state = False
+dist = False
+pid_exit_flag = False
+
+
+
+def pid_control():
+    print('PID thread started')
+    Kp, Ki, Kd = 0.2, 0.025, 0.2
+    integral_x = 0
+    integral_y = 0
+    prev_error_x = 0
+    prev_error_y = 0
+    local_lock_state = False
+    local_pid_exit_flag = False
+    while True:
+        # update local variables
+        with lock:
+            local_lock_state = lock_state
+            local_pid_exit_flag = pid_exit_flag
+        if local_pid_exit_flag:
             break
-        win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, movingUp, movingDown)
-        movingUp = movingUp //2
-        movingDown = movingDown //2
+        print(f"mouse lock state: {lock_state}")
+        if local_lock_state:
+            error_X = targetRealX - current_mouse_x
+            error_Y = targetRealY - current_mouse_y
+            integral_x += error_X
+            integral_y += error_Y
+            derivative_x = error_X - prev_error_x
+            derivative_y = error_Y - prev_error_y
+            prev_error_x = error_X
+            prev_error_y = error_Y
+            output_x = Kp * error_X + Ki * integral_x + Kd * derivative_x
+            output_y = Kp * error_Y + Ki * integral_y + Kd * derivative_y
+            print(f"鼠标移动 x:{output_x} y:{output_y}")
+            win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, int(output_x), int(output_y))
+        else:
+            integral_x = 0
+            integral_y = 0
+            prev_error_x = 0
+            prev_error_y = 0
+        time.sleep(0.001)
+    print('PID thread exited')
 
-    #mouse_xy(int(up),int(down))
-    # des_Y = int(des_Y)
-    # des_X = int(des_X)
-    #pydirectinput.moveTo(int(des_X),int(des_Y))
 
-def lock(aims,mouse,screen_width,screen_height,shot_width,shot_height):
-    # shot_width 截图高度，shot_height 截图区域高度
-    # x,y 是分辨率
-    #mouse_x,mouse_y = mouse.position
-
-    current_mouse_x = screen_width/2    #当前鼠标坐标，为屏幕中心
-    current_mouse_y = screen_height/2   #同上
-    current_mouse_x,current_mouse_y = mouse.position
-    dist_list = []
-    aims_copy = aims.copy()
-    #print(aims_copy)
-    aims_copy = [x for x in aims_copy if x[0] == lock_tag]
-    if(len(aims_copy) ==0):
-        return
-    for det in aims_copy:
-        _, x_c, y_c, _, _ = det
-        dist = (shot_width * float(x_c) - current_mouse_x) ** 2 + (shot_height * float(y_c) - current_mouse_y) ** 2
-        dist_list.append(dist)
-    det = aims_copy[dist_list.index(min(dist_list))]
-    #print('当前鼠标坐标',mouse.position)
-    tag,target_x,target_y,target_width,target_height=det
-    #将坐标及高度转变,转变为屏幕的坐标
-    targetRealHeight = shot_height * float(target_height)
-    targetShotX = shot_width * float(target_x)  #目标在截图范围内的坐标
-    targetShotY = shot_height * float(target_y)
-    screenCenterX = screen_width//2
-    screenCenterY = screen_height//2
-    left_top_x , left_top_y = screenCenterX - shot_width//2, screenCenterY - shot_height//2  #截图框的左上角坐标
-    targetRealX = left_top_x + targetShotX  #目标在屏幕的坐标
-    targetRealY = left_top_y + targetShotY
-
-    #print("tag:%s,target_x:%s,target_y:%s,height:%s,width:%s"%(tag,target_x,target_y,target_width,target_height))
-    #print("current mouse pos:",current_mouse_x," and ",current_mouse_y)
-    #dist = (x*float(x_c)-mouse_x)**2 + (y*float(y_c) - mouse_y)**2
-    dist = (targetRealX - current_mouse_x)**2 + (targetRealY - current_mouse_y)**2
-    #print("dist:",dist)
-    if(dist < 20000):
-        #print("locking")
-        #targetRealY += targetRealHeight/8   #将y轴移下面一点，可以防止枪械挡到模型
-        #mouse.move(0,100)
-        mouse_To1(des_X=targetRealX,des_Y=targetRealY,current_mouse_x=current_mouse_x,current_mouse_y=current_mouse_y)
-        #mouse_To2(des_X=targetRealX,des_Y=targetRealY,current_mouse_x=current_mouse_x,current_mouse_y=current_mouse_y,height=targetRealHeight,x_center=targetRealX,y_center=targetRealY)
-        #mouse_xy(round(int(x_cc)-mouse_x),round(int(y_cc)-mouse_y)//10)
-        #mouse_xy(round(pid_movex),round(pid_movey))
-        #win32api.mouse_event(win32con.MOUSEEVENTF_MOVE,round(targetRealX-current_mouse_x),round(targetRealY-current_mouse_y))
-        #win32api.SetCursorPos((int(targetRealX),int(targetRealY)))
-        #pydirectinput.moveTo(int(x_cc),int(y_cc),duration=100,tween=10,relative=False)
-        #mouse.position = x_cc,y_cc
-        # hwnd = 527818
-        # hwnd = win32gui.FindWindow(None, "Apex Legends")
-        # temp = win32api.MAKELONG(int(targetRealX)-1000, int(targetRealY))
-        # win32api.SendMessage(hwnd, win32con.WM_MOUSEMOVE, 0, temp)
+class MouseLock:
+    def __init__(self, shot_Width, shot_Height) -> None:
+        global current_mouse_x, current_mouse_y, dist, targetRealX, targetRealY
+        self.screen_width, self.screen_height = (2560,1440) # Screen resolution
+        self.target_offset_y = -0.1 # target offset
+        dist = False # distance small enough
+        self.mouse = pynput.mouse.Controller() # mouse controller
+        targetRealX, targetRealY = self.screen_width//2, self.screen_height//2
+        current_mouse_x, current_mouse_y = self.screen_width//2, self.screen_height//2
+        self.shot_Width, self.shot_Height = shot_Width, shot_Height
+        pid_thread = threading.Thread(target=pid_control)
+        pid_thread.start()
+    def xcyc2xyxy(self, xc, yc):
+        targetShotX = self.shot_Width / 2 * float(xc)  #目标在截图范围内的坐标
+        targetShotY = self.shot_Height / 2 * float(yc)
+        screenCenterX = self.screen_width//2
+        screenCenterY = self.screen_height//2
+        left_top_x , left_top_y = screenCenterX - self.shot_Width / 2 //2, screenCenterY - self.shot_Height / 2 //2  #截图框的左上角坐标
+        targetRealX = left_top_x + targetShotX  #目标在屏幕的坐标
+        targetRealY = left_top_y + targetShotY
+        return targetRealX, targetRealY
+    def lock(self, aims):
+        global targetRealX, targetRealY, current_mouse_x, current_mouse_y
+        current_mouse_x,current_mouse_y = self.mouse.position # update mouse position
+        aims_copy = aims.copy()
+        aims_copy = [x for x in aims_copy if x[0] == lock_tag]
+        if(len(aims_copy) ==0):
+            return
+        dist_list = []
+        for det in aims_copy:
+            _, x_c, y_c, _, _ = det # tag, x_center, y_center, width, height
+            x, y = self.xcyc2xyxy(x_c, y_c)
+            dist = (x - current_mouse_x) ** 2 + (y - current_mouse_y) ** 2
+            dist_list.append(dist)
+        det = aims_copy[dist_list.index(min(dist_list))] # get the nearest target
+        tag,target_x,target_y,target_width,target_height=det
+        targetRealX, targetRealY = self.xcyc2xyxy(target_x, target_y)
+        targetRealY += int(self.target_offset_y*self.shot_Height / 2 * float(target_height))
+        dist = (targetRealX - current_mouse_x)**2 + (targetRealY - current_mouse_y)**2
+        if dist < 20000:
+            self.dist = True
+        else:
+            self.dist = False
+    def set_lock_state(self, state):
+        global lock_state
+        with lock:
+            lock_state = state
+    def set_exit_flag(self, flag):
+        global pid_exit_flag
+        with lock:
+            pid_exit_flag = flag
